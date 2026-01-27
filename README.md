@@ -60,6 +60,8 @@ Não me responsabilizo por uso indevido.
 
 MIT License 
 
+Antes de explorar uma falha, pense em quem está do outro lado.
+
 ---
 
 ## ⭐ Contribuições
