@@ -1,22 +1,57 @@
 @echo off
-title Menu de Seguranca - OFFLINE (BAT PURO)
+title Menu de Seguranca Avançado - OFFLINE
 color 0A
 setlocal EnableExtensions EnableDelayedExpansion
+
+:: ==============================
+:: CONFIGURAÇÕES
+:: ==============================
+set SYN_LIMIT=15
+set LOG_FILE=bloqueios.log
+set WHITELIST=whitelist.txt
+
+if not exist "%WHITELIST%" (
+    echo 127.0.0.1 > "%WHITELIST%"
+    echo 0.0.0.0 >> "%WHITELIST%"
+)
 
 :: =====================================
 :: VERIFICAR ADMINISTRADOR
 :: =====================================
 net session >nul 2>&1
 if errorlevel 1 (
-    echo Execute este script como ADMINISTRADOR.
+    echo [ERRO] Execute como ADMINISTRADOR.
     pause
     exit
 )
 
+:menu
+call :banner
+echo [1] Ping em host              [7] Ver portas abertas (LISTENING)
+echo [2] Traceroute                [8] Executar MSRT
+echo [3] Scan Nmap (Host unico)    [9] Hardening do sistema
+echo [4] Scan de Rede Local        [10] Defesa ativa Anti-SYN Flood
+echo [5] Ver Redes Wi-Fi           [11] Limpar Regras de Auto-Bloqueio
+echo [6] Gerar Hash SHA256         [0] Sair
+echo.
+set /p op=Escolha uma opcao: 
+
+if "%op%"=="1" goto ping
+if "%op%"=="2" goto trace
+if "%op%"=="3" goto nmap_scan
+if "%op%"=="4" goto rede_scan
+if "%op%"=="5" goto wifi_redes
+if "%op%"=="6" goto hash
+if "%op%"=="7" goto portas
+if "%op%"=="8" goto msrt
+if "%op%"=="9" goto hardening
+if "%op%"=="10" goto syn_menu
+if "%op%"=="11" goto clear_rules
+if "%op%"=="0" exit
 goto menu
 
 :: =====================================
-:: BANNER
+:: BANNER (SUA ARTE)
 :: =====================================
 :banner
 cls
@@ -31,161 +66,73 @@ echo ^| $$  ^| $$^| $$  ^| $$^|  $$$$$$$^| $$      ^|  $$$$$$/^| $$ \  $$
 echo ^|__/  ^|__/^|__/  ^|__/ \_______/^|__/       \______/ ^|__/  \__/
 echo.
 echo ===============================================================
-echo             MENU DE SEGURANCA - MODO OFFLINE
+echo        SISTEMA DE DEFESA E DIAGNOSTICO - OFFLINE
 echo ===============================================================
 echo.
 exit /b
 
 :: =====================================
-:: MENU
-:: =====================================
-:menu
-call :banner
-echo [1] Ping em host
-echo [2] Traceroute
-echo [3] Scan com Nmap (host)
-echo [4] Scan da rede local
-echo [5] Ver redes Wi-Fi proximas
-echo [6] Gerar hash SHA256
-echo [7] Ver portas abertas
-echo [8] Executar MSRT
-echo [9] Hardening do sistema
-echo [0] Sair
-echo.
-set /p op=Escolha uma opcao: 
-
-if "%op%"=="1" goto ping
-if "%op%"=="2" goto trace
-if "%op%"=="3" goto nmap_scan
-if "%op%"=="4" goto rede_scan
-if "%op%"=="5" goto wifi_redes
-if "%op%"=="6" goto hash
-if "%op%"=="7" goto portas
-if "%op%"=="8" goto msrt
-if "%op%"=="9" goto hardening
-if "%op%"=="0" exit
-goto menu
-
-:: =====================================
-:: VALIDACAO ANTI-INJECAO
+:: VALIDAR INPUT
 :: =====================================
 :validar_input
 set "entrada=%~1"
-echo %entrada% | findstr /r "[&|<>^%%]" >nul
-if not errorlevel 1 (
-    echo.
-    echo [ERRO] Entrada contem caracteres invalidos!
-    echo Bloqueados: ^ & ^| ^< ^> ^%
-    echo.
-    pause
-    exit /b 1
-)
+if "%entrada%"=="" exit /b 1
+echo %entrada% | findstr /r "[&|<>^%%]" >nul && exit /b 1
 exit /b 0
 
 :: =====================================
-:: PING
+:: FUNÇÕES DE REDE
 :: =====================================
 :ping
-call :banner
-set /p host=Digite o host ou IP: 
+set /p host=IP ou Host: 
 call :validar_input "%host%" || goto menu
-ping %host%
+ping -n 4 %host%
 pause
 goto menu
 
-:: =====================================
-:: TRACEROUTE
-:: =====================================
 :trace
-call :banner
-set /p host=Digite o host ou IP: 
+set /p host=IP ou Host: 
 call :validar_input "%host%" || goto menu
 tracert %host%
 pause
 goto menu
 
-:: =====================================
-:: NMAP HOST
-:: =====================================
 :nmap_scan
-call :banner
-where nmap >nul 2>nul || (
-    echo Nmap nao instalado.
-    pause
-    goto menu
-)
-
-set /p host=Digite o host ou IP: 
+where nmap >nul 2>nul || (echo Instale o Nmap primeiro. && pause && goto menu)
+set /p host=IP para scan rapido: 
 call :validar_input "%host%" || goto menu
-
-nmap -F %host%
+nmap -F -T4 %host%
 pause
 goto menu
 
-:: =====================================
-:: SCAN REDE LOCAL
-:: =====================================
 :rede_scan
-call :banner
-where nmap >nul 2>nul || (
-    echo Nmap nao instalado.
-    pause
-    goto menu
-)
-
 for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4"') do (
     set IP=%%a
-    goto okip
+    set IP=!IP: =!
+    for /f "tokens=1-3 delims=." %%b in ("!IP!") do set REDE=%%b.%%c.%%d.0/24
 )
-
-:okip
-set IP=%IP: =%
-for /f "tokens=1-3 delims=." %%a in ("%IP%") do set REDE=%%a.%%b.%%c.0/24
-
+echo Escaneando rede: %REDE%
 nmap -sn %REDE%
-arp -a
 pause
 goto menu
 
-:: =====================================
-:: WIFI
-:: =====================================
-:wifi_redes
-call :banner
-netsh wlan show networks mode=bssid
-pause
-goto menu
-
-:: =====================================
-:: HASH
-:: =====================================
-:hash
-call :banner
-set /p file=Digite o caminho do arquivo: 
-call :validar_input "%file%" || goto menu
-certutil -hashfile "%file%" SHA256
-pause
-goto menu
-
-:: =====================================
-:: PORTAS
-:: =====================================
 :portas
-call :banner
-netstat -ano | findstr LISTENING
+netstat -ano | findstr "LISTENING"
 pause
 goto menu
 
-:: =====================================
-:: MSRT
-:: =====================================
-:msrt
-call :banner
-if exist "%SystemRoot%\System32\MRT.exe" (
-    start MRT.exe
+:hash
+set /p file=Caminho do arquivo: 
+if exist "%file%" (
+    certutil -hashfile "%file%" SHA256
 ) else (
-    echo MSRT nao encontrado neste sistema.
+    echo Arquivo nao encontrado.
 )
+pause
+goto menu
+
+:msrt
+start MRT.exe
 pause
 goto menu
 
@@ -194,21 +141,80 @@ goto menu
 :: =====================================
 :hardening
 call :banner
-echo Este processo vai:
-echo - Ativar Firewall
-echo - Rodar Defender
-echo - Reparar arquivos
-echo - Desativar SMBv1
-echo.
-pause
-
 netsh advfirewall set allprofiles state on
-"%ProgramFiles%\Windows Defender\MpCmdRun.exe" -Scan -ScanType 1
+dism /online /norestart /disable-feature /featurename:SMB1Protocol >nul
+netsh advfirewall firewall add rule name="BLOCK_RANSOM_LATERAL" dir=in action=block protocol=TCP localport=135,139,445 >nul
 sfc /scannow
-DISM /Online /Cleanup-Image /RestoreHealth
-dism /online /norestart /disable-feature /featurename:SMB1Protocol
+echo Hardening concluido.
+pause
+goto menu
 
-echo.
-echo Hardening basico concluido.
+:: =====================================
+:: SYN FLOOD MENU
+:: =====================================
+:syn_menu
+call :banner
+echo [1] Iniciar Monitoramento
+echo [2] Ver Log
+echo [0] Voltar
+set /p s=Opcao: 
+if "%s%"=="1" goto syn_detect
+if "%s%"=="2" (type %LOG_FILE% & pause & goto syn_menu)
+goto menu
+
+:: =====================================
+:: SYN DETECT (OTIMIZADO)
+:: =====================================
+:syn_detect
+echo Monitorando... CTRL+C para parar.
+
+netstat -an | find "SYN_RECEIVED" > raw_syn.txt
+
+for /f "tokens=3" %%i in (raw_syn.txt) do (
+    for /f "tokens=1 delims=:" %%a in ("%%i") do echo %%a>>ips.tmp
+)
+
+sort ips.tmp > ips_sorted.tmp
+
+for /f %%i in (ips_sorted.tmp) do (
+    find /c "%%i" ips.tmp > count.tmp
+    set /p total=<count.tmp
+    if !total! GEQ %SYN_LIMIT% call :syn_block %%i !total!
+)
+
+del raw_syn.txt ips.tmp ips_sorted.tmp count.tmp 2>nul
+timeout /t 5 >nul
+goto syn_detect
+
+:: =====================================
+:: BLOQUEIO
+:: =====================================
+:syn_block
+set target_ip=%1
+set n_syn=%2
+
+echo %target_ip% | find ":" >nul && exit /b
+echo %target_ip% | findstr /r "^10\. ^192\.168\. ^172\.16\." >nul && exit /b
+findstr /x "%target_ip%" "%WHITELIST%" >nul && exit /b
+
+netsh advfirewall firewall show rule name="AutoBlock_%target_ip%" >nul 2>&1 && exit /b
+
+netsh advfirewall firewall add rule name="AutoBlock_%target_ip%" dir=in action=block remoteip=%target_ip%
+echo %date% %time% | %target_ip% | SYN=%n_syn% | BLOQUEADO>>%LOG_FILE%
+echo [BLOQUEADO] %target_ip% (%n_syn%)
+
+exit /b
+
+:: =====================================
+:: LIMPAR REGRAS
+:: =====================================
+:clear_rules
+echo Removendo regras AutoBlock...
+
+for /f "tokens=2 delims=:" %%a in ('netsh advfirewall firewall show rule name^=all ^| find "AutoBlock_"') do (
+    netsh advfirewall firewall delete rule name="%%a" >nul
+)
+
+echo Regras removidas.
 pause
 goto menu
