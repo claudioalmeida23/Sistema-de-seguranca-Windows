@@ -1,259 +1,213 @@
 @echo off
 setlocal EnableDelayedExpansion
-title SISTEMA DE DEFESA AVANCADA - Criado por Claudio Almeida
-color 0A
-mode con: cols=100 lines=42
-
-:: =====================================
-:: CONFIGURACOES E VARIAVEIS
-:: =====================================
+chcp 65001 >nul
+title SISTEMA DE DEFESA v2.1 - CAAS
 set "CRIADOR=Claudio Almeida"
-set "VERSAO=v2.0"
+color 0A
+
+:: =====================================
+:: AUTO ELEVAR PARA ADMIN
+:: =====================================
+>nul 2>&1 net session
+if %errorLevel% neq 0 (
+    powershell -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    exit /b
+)
+
+:: =====================================
+:: CONFIGURACOES
+:: =====================================
+set "VERSAO=v3.1"
 set "SYN_LIMIT=15"
-set "LOG_FILE=logs_seguranca.log"
-set "WHITELIST=whitelist.txt"
+set "LOG_FILE=cyber_defense.log"
+set "MEMORY_FILE=blocked_ips.tmp"
 
-if not exist "%WHITELIST%" (
-    echo 127.0.0.1 > "%WHITELIST%"
-    echo 0.0.0.0 >> "%WHITELIST%"
-)
+if not exist "%LOG_FILE%" echo [%date% %time%] - CAAS INICIADO >> "%LOG_FILE%"
+if exist "%MEMORY_FILE%" del "%MEMORY_FILE%"
+
+where nmap >nul 2>&1
+if %errorlevel% neq 0 (set NMAP=0) else (set NMAP=1)
 
 :: =====================================
-:: VERIFICACAO DE ADMINISTRADOR
-:: =====================================
-net session >nul 2>&1
-if %errorlevel% neq 0 (
-    echo.
-    echo  [!] ERRO: ACESSO NEGADO.
-    echo  Este sistema requer privilegios de Administrador para funcionar.
-    pause
-    exit
-)
-
-:MENU_PRINCIPAL
+:MENU
 cls
 call :HEADER
-echo  [1] DIAGNOSTICO DE REDE (Ping, Trace, Portas)
-echo  [2] ESCANEAMENTO AVANCADO (Nmap / Rede Local)
-echo  [3] DEFESA ATIVA (Anti-SYN Flood / Firewall)
-echo  [4] HARDENING DO SISTEMA (Seguranca do Windows)
-echo  [5] FERRAMENTAS DE ARQUIVOS (Hash SHA256 / MSRT)
-echo  [6] GESTAO DE BLOQUEIOS (Limpar Regras)
-echo  [0] SAIR DO SISTEMA
 echo.
-echo  -------------------------------------------------------------------------------------------
-set /p op="SISTEMA > Selecione um modulo: "
+echo  [1] Diagnostico de Rede
+echo  [2] Escaneamento Avancado (Nmap)
+echo  [3] ESCUDO ATIVO CAAS
+echo  [4] Hardening e Stealth (Blindagem)
+echo  [5] Ferramentas
+echo  [6] Limpar Regras e Memoria
+echo  [0] Sair
+echo.
+set /p op="CAAS > "
 
-if "%op%"=="1" goto MODULO_REDE
-if "%op%"=="2" goto MODULO_SCAN
-if "%op%"=="3" goto MODULO_DEFESA
-if "%op%"=="4" goto MODULO_HARDENING
-if "%op%"=="5" goto MODULO_TOOLS
-if "%op%"=="6" goto CLEAR_RULES
-if "%op%"=="0" exit
-goto MENU_PRINCIPAL
+if "%op%"=="1" goto REDE
+if "%op%"=="2" goto SCAN
+if "%op%"=="3" goto DEFESA
+if "%op%"=="4" goto HARDENING
+if "%op%"=="5" goto TOOLS
+if "%op%"=="6" goto CLEAR
+if "%op%"=="0" goto EXIT
+goto MENU
 
+:: =====================================
 :HEADER
-echo  ===========================================================================================
-echo     SISTEMA DE SEGURANCA AVANCADA ^| Criador: %CRIADOR%
-echo     VERSAO: %VERSAO% ^| STATUS: MONITORAMENTO ATIVO
-echo  ===========================================================================================
-echo   Usuario: %username%   ^|   Maquina: %computername%   ^|   Data: %date%
-echo  -------------------------------------------------------------------------------------------
+echo.
+echo   ██████╗  █████╗  █████╗  ███████╗
+echo  ██╔════╝ ██╔══██╗██╔══██╗ ██╔════╝
+echo  ██║      ███████║███████║ ███████╗
+echo  ██║      ██╔══██║██╔══██║ ╚════██║
+echo  ╚██████╗ ██║  ██║██║  ██║ ███████║
+echo   ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚══════╝
+echo   ╔══════════════════════════════════╗
+echo   ║   CYBER ACTIVE DEFENSE PANEL     ║
+echo   ║   STATUS: MONITORAMENTO ATIVO    ║
+echo   ╚══════════════════════════════════╝
 echo.
 exit /b
 
 :: =====================================
-:: MODULO 1: REDE
-:: =====================================
-:MODULO_REDE
+:REDE
 cls
 call :HEADER
-echo  [ INFORMACOES DO MODULO: DIAGNOSTICO ]
-echo  - PING: Verifica se um site ou IP esta online e o tempo de resposta.
-echo  - TRACE: Mostra o caminho que seus dados percorrem ate o destino.
-echo  - PORTAS: Lista programas que estao "ouvindo" conexoes na sua maquina.
-echo  -------------------------------------------------------------------------------------------
-echo  [1] Teste de Conectividade (Ping)
-echo  [2] Rastrear Rota (Traceroute)
-echo  [3] Listar Portas em Escuta (Listening)
-echo  [0] Voltar
-echo.
-set /p op_r="REDE > "
-if "%op_r%"=="1" goto PING_FUNC
-if "%op_r%"=="2" goto TRACE_FUNC
-if "%op_r%"=="3" goto PORTAS_FUNC
-goto MENU_PRINCIPAL
+echo [1] Ping
+echo [2] Tracert
+echo [3] Portas em Escuta
+echo [0] Voltar
+set /p r="REDE > "
 
-:PING_FUNC
-set /p host="Digite o IP ou Host: "
-ping -n 4 %host%
-pause
-goto MODULO_REDE
-
-:TRACE_FUNC
-set /p host="Digite o IP ou Host: "
-tracert %host%
-pause
-goto MODULO_REDE
-
-:PORTAS_FUNC
-netstat -ano | findstr "LISTENING"
-pause
-goto MODULO_REDE
-
-:: =====================================
-:: MODULO 2: SCAN
-:: =====================================
-:MODULO_SCAN
-cls
-call :HEADER
-echo  [ INFORMACOES DO MODULO: ESCANEAMENTO ]
-echo  - NMAP: Faz uma varredura tecnica em busca de portas e servicos abertos.
-echo  - SCAN REDE: Identifica todos os aparelhos (Celulares, PCs) ligados no seu Wi-Fi/Rede.
-echo  -------------------------------------------------------------------------------------------
-echo  [1] Nmap Scan Rapido
-echo  [2] Scan de Dispositivos na Rede Local
-echo  [0] Voltar
-echo.
-set /p op_s="SCAN > "
-if "%op_s%"=="1" goto NMAP_FUNC
-if "%op_s%"=="2" goto REDE_SCAN_FUNC
-goto MENU_PRINCIPAL
-
-:NMAP_FUNC
-where nmap >nul 2>nul || (echo [!] Nmap nao encontrado. Instale-o primeiro. & pause & goto MODULO_SCAN)
-set /p host="Alvo do Scan: "
-nmap -F -T4 %host%
-pause
-goto MODULO_SCAN
-
-:REDE_SCAN_FUNC
-for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4"') do (
-    set IP=%%a
-    set IP=!IP: =!
-    for /f "tokens=1-3 delims=." %%b in ("!IP!") do set REDE=%%b.%%c.%%d.0/24
+if "%r%"=="1" (
+    set /p host="IP ou dominio: "
+    ping -n 4 !host!
+    pause & goto REDE
 )
-echo Escaneando rede: %REDE%
-nmap -sn %REDE%
-pause
-goto MODULO_SCAN
+if "%r%"=="2" (
+    set /p host="IP ou dominio: "
+    tracert !host!
+    pause & goto REDE
+)
+if "%r%"=="3" (
+    netstat -ano | findstr LISTENING
+    pause & goto REDE
+)
+goto MENU
 
 :: =====================================
-:: MODULO 3: DEFESA
-:: =====================================
-:MODULO_DEFESA
+:SCAN
 cls
 call :HEADER
-echo  [ INFORMACOES DO MODULO: DEFESA ATIVA ]
-echo  - MONITOR: Protege contra ataques de negacao de servico (SYN Flood).
-echo  - BLOQUEIO: Se um IP tentar sobrecarregar sua rede, ele sera banido no Firewall.
-echo  -------------------------------------------------------------------------------------------
-echo  [1] Iniciar Monitor Anti-SYN Flood
-echo  [2] Ver Logs de Bloqueios
-echo  [0] Voltar
-echo.
-set /p op_d="DEFESA > "
-if "%op_d%"=="1" goto SYN_DETECT
-if "%op_d%"=="2" (cls & type %LOG_FILE% & pause & goto MODULO_DEFESA)
-goto MENU_PRINCIPAL
-
-:SYN_DETECT
-cls
-echo [!] Monitorando... Pressione CTRL+C para parar.
-:syn_loop
-netstat -an | find "SYN_RECEIVED" > raw_syn.txt
-for /f "tokens=3" %%i in (raw_syn.txt) do (
-    for /f "tokens=1 delims=:" %%a in ("%%i") do echo %%a>>ips.tmp
+if %NMAP%==0 (
+    echo Nmap nao instalado. Baixe em nmap.org
+    pause & goto MENU
 )
-if exist ips.tmp (
-    sort ips.tmp > ips_sorted.tmp
-    for /f %%i in (ips_sorted.tmp) do (
-        find /c "%%i" ips.tmp > count.tmp
-        set /p total=<count.tmp
-        if !total! GEQ %SYN_LIMIT% call :SYN_BLOCK %%i !total!
+echo [1] Scan Rapido
+echo [0] Voltar
+set /p s="SCAN > "
+
+if "%s%"=="1" (
+    set /p host="Alvo: "
+    nmap -F -T4 !host!
+    pause & goto SCAN
+)
+goto MENU
+
+:: =====================================
+:DEFESA
+cls
+call :HEADER
+echo ESCUDO CAAS ATIVO
+echo Limite: %SYN_LIMIT% conexoes
+echo CTRL+C para sair
+echo.
+
+:LOOP
+netstat -an | find "SYN_RECEIVED" > syn.tmp
+
+for /f "tokens=3" %%i in (syn.tmp) do (
+    for /f "tokens=1 delims=:" %%a in ("%%i") do (
+        set ip=%%a
+
+        echo !ip! | findstr /r "^127\. ^192\.168\. ^10\. ^172\." >nul
+        if !errorlevel! neq 0 (
+
+            find /c "!ip!" syn.tmp > count.tmp
+            set /p total=<count.tmp
+
+            if !total! GEQ %SYN_LIMIT% (
+                find "!ip!" "%MEMORY_FILE%" >nul 2>&1
+                if !errorlevel! neq 0 call :BLOCK "!ip!" "!total!"
+            )
+        )
     )
-    del raw_syn.txt ips.tmp ips_sorted.tmp count.tmp 2>nul
 )
-timeout /t 5 >nul
-goto syn_loop
 
-:SYN_BLOCK
-set target_ip=%1
-set n_syn=%2
-echo %target_ip% | findstr /r "^10\. ^192\.168\. ^172\.16\. ^127\." >nul && exit /b
-findstr /x "%target_ip%" "%WHITELIST%" >nul && exit /b
-netsh advfirewall firewall show rule name="AutoBlock_%target_ip%" >nul 2>&1 && exit /b
-netsh advfirewall firewall add rule name="AutoBlock_%target_ip%" dir=in action=block remoteip=%target_ip%
-echo %date% %time% ^| IP: %target_ip% ^| BLOQUEADO >> %LOG_FILE%
-echo [BLOQUEADO] %target_ip% (%n_syn% conexoes)
+del syn.tmp count.tmp 2>nul
+timeout /t 8 >nul
+goto LOOP
+
+:BLOCK
+netsh advfirewall firewall add rule name="CAAS_Block_%1" dir=in action=block remoteip=%1 >nul 2>&1
+echo %1 >> "%MEMORY_FILE%"
+echo [%date% %time%] - IP %1 BLOQUEADO (%2 conexoes) >> "%LOG_FILE%"
+echo ALVO BLOQUEADO: %1 (%2 conexoes)
 exit /b
 
 :: =====================================
-:: MODULO 4: HARDENING
-:: =====================================
-:MODULO_HARDENING
+:HARDENING
 cls
 call :HEADER
-echo  [ INFORMACOES DO MODULO: HARDENING ]
-echo  - FIREWALL: Garante que as protecoes do Windows estejam ligadas.
-echo  - SMBv1: Desativa um protocolo antigo usado por virus Ransomware.
-echo  - SFC: Verifica e repara arquivos corrompidos do seu Windows.
-echo  -------------------------------------------------------------------------------------------
-set /p confirm_h="Deseja aplicar estas protecoes agora? (S/N): "
-if /i "%confirm_h%" neq "S" goto MENU_PRINCIPAL
-
-echo [!] Aplicando Hardening...
-netsh advfirewall set allprofiles state on
-powershell -Command "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart" >nul 2>&1
-netsh advfirewall firewall add rule name="DEFESA_LATERAL_BLOCK" dir=in action=block protocol=TCP localport=135,139,445 >nul
-sfc /scannow
-echo [+] Processo concluido com sucesso.
+echo Aplicando Blindagem...
+netsh advfirewall set allprofiles state on >nul
+netsh advfirewall firewall add rule name="CAAS_STEALTH" protocol=icmpv4:8,any dir=in action=block >nul
+netsh advfirewall firewall add rule name="CAAS_PORT_BLOCK" dir=in action=block protocol=TCP localport=135,445 >nul
+echo Blindagem aplicada.
 pause
-goto MENU_PRINCIPAL
+goto MENU
 
 :: =====================================
-:: MODULO 5: TOOLS
-:: =====================================
-:MODULO_TOOLS
+:TOOLS
 cls
 call :HEADER
-echo  [ INFORMACOES DO MODULO: FERRAMENTAS ]
-echo  - HASH SHA256: Verifica a "impressao digital" de um arquivo para ver se foi alterado.
-echo  - MSRT: Ferramenta oficial da Microsoft para remover softwares malintencionados.
-echo  -------------------------------------------------------------------------------------------
-echo  [1] Gerar Hash SHA256 de Arquivo
-echo  [2] Executar MSRT (Antivirus)
-echo  [0] Voltar
-echo.
-set /p op_t="TOOLS > "
-if "%op_t%"=="1" (
-    set /p file="Arraste o arquivo aqui: "
-    certutil -hashfile !file! SHA256
-    pause
+echo [1] Gerar Hash SHA256
+echo [2] Abrir MSRT
+echo [3] Ver Logs
+echo [0] Voltar
+set /p t="TOOLS > "
+
+if "%t%"=="1" (
+    set /p "file=Arquivo: "
+    if exist "!file!" (
+        certutil -hashfile "!file!" SHA256
+    ) else (
+        echo Arquivo nao encontrado.
+    )
+    pause & goto TOOLS
 )
-if "%op_t%"=="2" (start MRT.exe)
-goto MENU_PRINCIPAL
+if "%t%"=="2" (
+    start mrt.exe
+    goto TOOLS
+)
+if "%t%"=="3" (
+    type "%LOG_FILE%"
+    pause & goto TOOLS
+)
+goto MENU
 
 :: =====================================
-:: MODULO 6: LIMPEZA
-:: =====================================
-:CLEAR_RULES
+:CLEAR
 cls
-call :HEADER
-echo  [ INFORMACOES DO MODULO: GESTAO ]
-echo  - LIMPEZA: Remove as regras de bloqueio criadas por este script.
-echo  - Utilize isto caso tenha bloqueado algum IP por engano.
-echo  -------------------------------------------------------------------------------------------
-set /p confirm_c="Deseja limpar as regras de Auto-Bloqueio? (S/N): "
-if /i "%confirm_h%" neq "S" goto MENU_PRINCIPAL
-
-echo [!] Removendo regras AutoBlock...
-for /f "tokens=2 delims=:" %%a in ('netsh advfirewall firewall show rule name^=all ^| find "AutoBlock_"') do (
-    set "ruleName=%%a"
-    set "ruleName=!ruleName:~1!"
-    netsh advfirewall firewall delete rule name="!ruleName!" >nul
-    echo [-] Removido: !ruleName!
-)
+echo Limpando regras CAAS...
+netsh advfirewall firewall delete rule name="CAAS_Block_*" >nul 2>&1
+netsh advfirewall firewall delete rule name="CAAS_STEALTH" >nul 2>&1
+netsh advfirewall firewall delete rule name="CAAS_PORT_BLOCK" >nul 2>&1
+if exist "%MEMORY_FILE%" del "%MEMORY_FILE%"
+echo Sistema resetado.
 pause
-goto MENU_PRINCIPAL
+goto MENU
+
+:: =====================================
+:EXIT
+if exist "%MEMORY_FILE%" del "%MEMORY_FILE%"
+exit
